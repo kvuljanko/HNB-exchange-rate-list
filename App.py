@@ -1,0 +1,279 @@
+import csv
+import requests
+import os.path
+import json
+from tkinter import *
+import tkinter.messagebox
+from tkinter import ttk
+import datetime
+import collections
+
+class Valuta:
+
+    def __init__(self, drzava, sifra_valute, valuta, jedinica, kupovni_tecaj, srednji_tecaj, prodajni_tecaj):
+        self.drzava = drzava
+        self.sifra_valute = sifra_valute
+        self.valuta = valuta
+        self.jedinica = jedinica
+        self.kupovni_tecaj = kupovni_tecaj
+        self.srednji_tecaj = srednji_tecaj
+        self.prodajni_tecaj = prodajni_tecaj
+
+def program():
+    
+    global lista_valuta
+    global json_data
+    
+    lista_valuta = []
+    folder = "Tecajne liste"
+    
+    #Dohvat tečajne liste i spremanje u .csv
+    fileNaziv = os.path.join(folder, (str(datum)) + ".csv")
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+    if os.path.isfile(fileNaziv) == False:
+        url = "http://api.hnb.hr/tecajn?datum=" + datum
+        req = requests.get(url)
+        if req.status_code == 200:
+            data = req.text
+            with open(fileNaziv, "w") as file:
+                file.write(data)
+            
+    #Čitanje podataka i spremanje u listu
+    with open(fileNaziv) as file:
+        json_data = file.read()        
+    data = json.loads(json_data)
+    
+    for x in data:
+        try:
+            drzava = (x["drzava"])
+            sifra_valute = (x["sifra_valute"])
+            valuta = (x["valuta"])
+            jedinica = (x["jedinica"])
+            kuptecaj = (x["kupovni_tecaj"])
+            sredtecaj = (x["srednji_tecaj"])
+            prodtecaj = (x["prodajni_tecaj"])
+            nova_valuta =  Valuta(drzava, sifra_valute, valuta, jedinica, kuptecaj, sredtecaj, prodtecaj)
+            lista_valuta.append(nova_valuta)
+        except:
+            pass
+    
+    if (len(lista_valuta) < 5):
+        msgbox.showerror("Greška! ", "Greška pri dohvatu podataka ")
+        os.remove(fileNaziv)
+        json_data = ""
+    else:
+        gui()
+
+def gui():
+
+    global main
+    global glavni
+    global tablica
+    global stanje
+
+    #Novi prozor i tablica se pozivaju samo prvi put
+    if stanje == True:
+        root.destroy()        
+        main = Tk()
+        main.title("Tečajna lista")
+        main.geometry("1050x660+200+0")
+        
+        glavni = ttk.Frame(main)
+        glavni.pack(fill = "both", expand = "yes")   
+        nazivi_stupaca = ("drzava", "sifra_valute", "valuta", "jedinica", "kupovni_tecaj",
+                                      "srednji_tecaj" , "prodajni_tecaj")
+        tablica = ttk.Treeview(columns = nazivi_stupaca, show = "headings")
+        tablica.column("drzava", width = 155, anchor = "center")
+        tablica.column("sifra_valute", width = 150, anchor = "center")
+        tablica.column("valuta", width = 120, anchor = "center")
+        tablica.column("jedinica", width = 80, anchor = "center")
+        tablica.column("kupovni_tecaj", width = 180, anchor = "center")
+        tablica.column("srednji_tecaj", width = 180, anchor = "center")
+        tablica.column("prodajni_tecaj", width = 180, anchor = "center")
+
+        tablica.heading("drzava", text = "Država")
+        tablica.heading("sifra_valute", text = "Šifra Valute")
+        tablica.heading("valuta", text = "Valuta")
+        tablica.heading("jedinica", text = "Jedinica")
+        tablica.heading("kupovni_tecaj", text = "Kupovni tečaj")
+        tablica.heading("srednji_tecaj", text = "Srednji tečaj")
+        tablica.heading("prodajni_tecaj", text = "Prodajni tečaj")
+
+        tablica.grid(row = 1, column = 1, in_ = glavni, ipady = 170)
+
+        Label(glavni, text="Unesite datum za koji želite ispis tečajne liste u [DD-MM-YYYY] formatu: ").grid(row = 3, column = 1)
+        unos_datuma = Entry(glavni, justify = "center")
+        unos_datuma.grid(row = 4, column = 1)
+        Button(glavni, text = "Potvrdi ", command = lambda: provjera(unos_datuma.get())).grid(row=5, column=1)
+        Button(glavni, text = "Export ", command = lambda: export()).grid(row=5, column=1, sticky = "W")
+        Button(glavni, text = "Zatvori ", command = lambda: main.destroy()).grid(row=5, column=1, sticky = "E")
+        stanje = False
+        
+    Label(glavni, text="Tečajna lista na dan: " + gdatum ).grid(row = 0, column = 1)
+    
+    #Čišćenje tablice
+    tablica.delete(*tablica.get_children())
+    
+    #Popunjavanje tablice
+    for x in range (0, len(lista_valuta)):
+        valuta = lista_valuta[x]
+        tablica.insert( "" , x, values = (valuta.drzava, valuta.sifra_valute, valuta.valuta, valuta.jedinica,
+                        valuta.kupovni_tecaj, valuta.srednji_tecaj, valuta.prodajni_tecaj))
+
+
+def export():
+
+    export = Tk()
+    export.title("Export")
+    export.geometry("300x100+500+100")
+
+    Label(export, text="Unesite naziv file-a: ").grid(row = 0, column = 0)
+    Label(export, text="Unesite delimiter: ").grid(row = 1, column = 0)
+    Button(export, text = "Spremi ", command = lambda: spremi(unos_naziva.get(), unos_delimitera.get())).grid(row=2, column=1)
+    Button(export, text = "Zatvori ", command = lambda: export.destroy()).grid(row=3, column=2)
+    
+    unos_naziva = Entry(export, justify = "center")
+    unos_naziva.grid(row = 0, column = 1)
+    unos_delimitera = Entry(export, justify = "center")
+    unos_delimitera.grid(row = 1, column = 1)
+
+    def spremi(unos_naziva, unos_delimitera):
+
+        lista_valuta_test = []
+        brojac = 0
+        
+        if (unos_delimitera == ""):
+            unos_delimitera = "\t"
+
+        if not (unos_naziva):
+            msgbox.showerror("Greška! ", "Upisati naziv! ")
+            export.lift()
+                
+        else:
+            folder = "Export"
+            fileNaziv = os.path.join(folder, (str(unos_naziva)) + ".csv")
+            
+            if not os.path.exists(folder):
+                os.makedirs(folder)
+
+            try:            
+                if os.path.isfile(fileNaziv) == False:
+                    try:
+                        if (len(lista_valuta) > 5):
+                            with open(fileNaziv, "w") as file:
+
+                                #Početni red
+                                naslov1 = unos_delimitera.join(["drzava", "sifra_valute", "valuta", "jedinica", "kupovni_tecaj", "srednji_tecaj", "prodajni_tecaj"])
+                                naslov = (naslov1 + "\n")
+                                file.write(naslov)
+
+                                #Zapisivanje u file uz zadani delimiter
+                                
+                                for i in range(0, len(lista_valuta)):
+                                    linija =  ((lista_valuta[i].drzava) + (unos_delimitera) + str(lista_valuta[i].sifra_valute) + (unos_delimitera) + (lista_valuta[i].valuta) +
+                                                   (unos_delimitera)+ str(lista_valuta[i].jedinica) + (unos_delimitera) + "\"" +
+                                                   str(lista_valuta[i].kupovni_tecaj) + "\"" + (unos_delimitera) + "\"" +
+                                                   str(lista_valuta[i].srednji_tecaj) + "\""+ (unos_delimitera)+ "\"" +
+                                                   str(lista_valuta[i].prodajni_tecaj) + "\""  + "\n")
+                                    file.write(linija)
+
+                        #Čitanje file-a uz zadani delimiter, i nova lista         
+                        with open(fileNaziv, "r+") as file:
+
+                            reader = csv.reader (file, delimiter = (unos_delimitera))                            
+                            next(reader)
+                            for x in reader:
+                                try:
+                                    drz =  (x[0])
+                                    sif_val = (x[1])
+                                    val = (x[2])
+                                    jed = (x[3])
+                                    kup_tec = (x[4])
+                                    sr_tec = (x[5])
+                                    prod_tec = (x[6])
+                                    nova_valuta_test = Valuta(drz, sif_val, val, jed, kup_tec, sr_tec, prod_tec)
+                                    lista_valuta_test.append(nova_valuta_test)
+                                except:
+                                    pass
+
+                        #Usporedba nove i stare liste, i njihovih vrijednosti.
+                        #Ako zadani delimiter promjeni strukturu podataka, to znači da ne valja.
+                                
+                        for x in range (0, len(lista_valuta)):
+                            if (compare(lista_valuta_test[x].drzava, lista_valuta[x].drzava)) and (compare(lista_valuta_test[x].sifra_valute, lista_valuta[x].sifra_valute)) and\
+                                (compare(lista_valuta_test[x].valuta, lista_valuta[x].valuta)) and (compare(str(lista_valuta_test[x].jedinica), str(lista_valuta[x].jedinica))) and\
+                                (compare(lista_valuta_test[x].kupovni_tecaj, lista_valuta[x].kupovni_tecaj)) and (compare(lista_valuta_test[x].srednji_tecaj, lista_valuta[x].srednji_tecaj)) and\
+                                (compare(lista_valuta_test[x].prodajni_tecaj, lista_valuta[x].prodajni_tecaj)):
+                                
+                                brojac += 1
+                             
+                                               
+                        if (brojac == len(lista_valuta)): 
+                            if (unos_delimitera == "\t"):
+                                unos_delimitera = "TAB"
+                            msgbox.showinfo("Spremljeno! ", "Tečajna lista na dan " + gdatum + " je spremljena pod nazivom \"" + fileNaziv +
+                                                        "\" i korišten je delimiter: \"" + unos_delimitera + "\"" )
+                            export.destroy()
+                        else:
+                            msgbox.showerror("Greška! ", "Greška kod dohvata tečajne liste. Nije moguće koristiti zadani delimiter. ")
+                            os.remove(fileNaziv)
+                            export.lift()   
+                    except:
+                        msgbox.showerror("Greška! ", "Greška kod unosa. ")
+                        os.remove(fileNaziv)
+                        export.lift()
+                else:
+                    msgbox.showerror("Greška! ", "File već postoji. ")
+                    export.lift()
+            except:
+                    export.lift()
+        
+
+def provjera(unos_datuma):
+    
+    global datum
+    global gdatum
+    global json_data
+    
+    now = datetime.datetime.now()
+       
+    try:
+        #Prazan unos = današnji datum
+        if (unos_datuma) == "":
+            gdatum = (str(now.day) + "-" +  str(now.month) + "-" + str(now.year))
+            datum = str(now.date())
+        else:
+            gdatum = unos_datuma
+            #Promjena datuma u YYYY-MM-DD format
+            dan = unos_datuma[0:2]
+            mj = unos_datuma[2:6]
+            god = unos_datuma[6:10]
+            datum = god + mj + dan
+        program()
+        
+    except:
+        msgbox.showerror("Greška! ", "Greška kod unosa! ")
+        json_data = ""
+
+
+
+def start():
+    
+    global root
+    
+    root = Tk()
+    root.title("Tečajna lista ")
+    root.geometry("450x200+400+100")
+    Label(root, text="Unesite datum za koji želite ispis tečajne liste u [DD-MM-YYYY] formatu: ").grid(row = 0, column = 0)
+    unos_datuma = Entry(root, justify = "center")
+    unos_datuma.grid(row = 1, column = 0)
+    Button(root, text = "Potvrdi ", command = lambda: provjera(unos_datuma.get())).grid(row=2, column=0)
+
+    root.mainloop()
+    
+#Početak aplikacije
+msgbox = tkinter.messagebox
+compare = lambda x, y: collections.Counter(x) == collections.Counter(y)
+stanje = True
+start()
